@@ -57,7 +57,7 @@ class CameraActivity : AppCompatActivity(), FrameInferface {
 
         boundingBoxOverlay = findViewById<BoundingBoxOverlay>(R.id.bbox_overlay)
         boundingBoxOverlay.setWillNotDraw(false)
-        boundingBoxOverlay.setZOrderOnTop(true)
+        //boundingBoxOverlay.setZOrderOnTop(true)
         frameAnalyser =
             FrameAnalyser(this, boundingBoxOverlay, viewBackgroundOfMessage, textViewMessage)
         cameraProviderFuture = ProcessCameraProvider.getInstance(this)

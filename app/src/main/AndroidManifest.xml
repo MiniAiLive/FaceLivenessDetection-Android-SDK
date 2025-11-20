@@ -3,10 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.miniai.liveness">
 
+    <!-- Camera capability & permission -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="true" />
-
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
@@ -19,21 +19,25 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MiniAILiveness"
         tools:targetApi="31">
-        <activity
-            android:name=".CameraActivity"
-            android:exported="false" />
+
+        <!-- Splash is the launcher. Mark it noHistory so you can’t navigate back to it. -->
         <activity
             android:name=".SplashScreenActivity"
-            android:exported="true">
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.MiniAILiveness"> <!-- or your splash theme -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Your main screens -->
         <activity
             android:name=".UserActivity"
             android:exported="false" />
+        <activity
+            android:name=".CameraActivity"
+            android:exported="false" />
     </application>
-
 </manifest>

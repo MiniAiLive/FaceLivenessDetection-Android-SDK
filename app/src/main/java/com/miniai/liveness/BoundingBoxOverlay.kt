@@ -1,121 +1,155 @@
 package com.miniai.liveness
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.RectF
+import android.graphics.*
 import android.util.AttributeSet
-import android.util.Log
-import android.view.SurfaceHolder
-import android.view.SurfaceView
-import androidx.core.graphics.toRectF
-import com.fm.face.*
+import android.view.View
+import com.fm.face.FaceBox
 
-// Defines an overlay on which the boxes and text will be drawn.
-class BoundingBoxOverlay( context: Context , attributeSet: AttributeSet )
-    : SurfaceView( context , attributeSet ) , SurfaceHolder.Callback {
+/**
+ * A lightweight overlay View that draws face bounding boxes and labels (REAL/SPOOF).
+ * Usage:
+ *  - Call setFrameSize(frameW, frameH) when you know the camera frame size (can be called every frame; cheap).
+ *  - Call updateDetections(faceBoxes, score, result) whenever new results arrive.
+ *    result: 0 = Spoof, 1 = Real, 2 = Multiple
+ *  - Optionally set mirrorFrontCamera = true for front-camera previews.
+ */
+class BoundingBoxOverlay @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : View(context, attrs) {
 
-    companion object {
-        private val TAG = BoundingBoxOverlay::class.simpleName
+    // Source (camera) frame size
+    private var frameWidth: Int = 0
+    private var frameHeight: Int = 0
+
+    // If using front camera preview, you likely want to mirror horizontally.
+    var mirrorFrontCamera: Boolean = false
+        set(value) {
+            field = value
+            dimsInitialized = false
+            invalidate()
+        }
+
+    // Latest detections and liveness info
+    private var faceBoundingBoxes: List<FaceBox>? = null
+    private var livenessScore: Float = 0f
+    private var livenessResult: Int = 0 // 0=spoof, 1=real, 2=multiple
+
+    // Matrix to map frame coordinates to this view
+    private val output2OverlayTransform = Matrix()
+    private var dimsInitialized = false
+
+    // Paints
+    private val realBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        color = Color.parseColor("#FF00FF00") // green
     }
-    // Variables used to compute output2overlay transformation matrix
-    // These are assigned in FrameAnalyser.kt
-    var areDimsInit = false
-    var frameHeight = 0
-    var frameWidth = 0
-
-    // This var is assigned in FrameAnalyser.kt
-    var faceBoundingBoxes: List<FaceBox>? = null
-    var livenessScore = 0.0f
-    var livenessResult: Int = 0
-
-    private var output2OverlayTransform: Matrix = Matrix()
-
-    // Paint for boxes and text
-    private val realBoxPaint = Paint().apply {
-        strokeWidth = 5.0f
+    private val spoofBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        color = Color.parseColor("#FFFF0000") // red
+    }
+    private val multipleBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        color = Color.parseColor("#FFFFFF00") // yellow
+    }
+    private val realTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FF00FF00")
-        style = Paint.Style.STROKE
         textSize = 64f
+        style = Paint.Style.FILL
     }
-
-    private val spoofBoxPaint = Paint().apply {
-        strokeWidth = 5.0f
-        color = Color.parseColor("#FFFF0000")
-        style = Paint.Style.STROKE
-        textSize = 64f
-    }
-
-    private val mulitpleBoxPaint = Paint().apply {
-        strokeWidth = 5.0f
-        color = Color.parseColor("#FFFFFF00")
-        style = Paint.Style.STROKE
-        textSize = 64f
-    }
-
-    private val realTextPaint = Paint().apply {
-        strokeWidth = 2.0f
-        color = Color.parseColor("#FF00FF00")
-        textSize = 64f
-    }
-
-    private val spoofTextPaint = Paint().apply {
-        strokeWidth = 2.0f
+    private val spoofTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFFF0000")
         textSize = 64f
-    }
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        TODO("Not yet implemented")
+        style = Paint.Style.FILL
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        TODO("Not yet implemented")
+    /** Set the source (camera) frame size used for coordinate scaling. */
+    fun setFrameSize(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        if (width != frameWidth || height != frameHeight) {
+            frameWidth = width
+            frameHeight = height
+            dimsInitialized = false
+            invalidate()
+        }
     }
 
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        TODO("Not yet implemented")
+    /**
+     * Update detections and liveness info, then request a redraw.
+     * @param boxes list of FaceBox from your SDK; can be null/empty
+     * @param score liveness score
+     * @param result 0=spoof, 1=real, 2=multiple
+     */
+    fun updateDetections(
+        boxes: List<FaceBox>?,
+        score: Float,
+        result: Int
+    ) {
+        faceBoundingBoxes = boxes
+        livenessScore = score
+        livenessResult = result
+        invalidate()
     }
 
-    override fun onDraw(canvas: Canvas?) {
-        if (faceBoundingBoxes != null) {
-            if (!areDimsInit) {
-                val viewWidth = canvas!!.width.toFloat()
-                val viewHeight = canvas.height.toFloat()
-                val xFactor: Float = viewWidth / frameWidth.toFloat()
-                val yFactor: Float = viewHeight / frameHeight.toFloat()
-                // Scale and mirror the coordinates ( required for front lens )
-                output2OverlayTransform.preScale(xFactor, yFactor)
-                output2OverlayTransform.postScale(1f, 1f, viewWidth / 2f, viewHeight / 2f)
-                areDimsInit = true
+    /** Clear overlay. */
+    fun clear() {
+        faceBoundingBoxes = null
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        val boxes = faceBoundingBoxes ?: return
+        if (boxes.isEmpty()) return
+        if (frameWidth == 0 || frameHeight == 0) return
+        if (width == 0 || height == 0) return
+
+        if (!dimsInitialized) {
+            val viewW = width.toFloat()
+            val viewH = height.toFloat()
+            val xFactor = viewW / frameWidth.toFloat()
+            val yFactor = viewH / frameHeight.toFloat()
+            output2OverlayTransform.reset()
+            output2OverlayTransform.preScale(xFactor, yFactor)
+            if (mirrorFrontCamera) {
+                output2OverlayTransform.postScale(-1f, 1f, viewW / 2f, viewH / 2f)
             }
-            else {
-                for (face in faceBoundingBoxes!!) {
-                    val boundingBox = RectF(face.left.toFloat(), face.top.toFloat(), face.right.toFloat(), face.bottom.toFloat())
-                    output2OverlayTransform.mapRect(boundingBox)
-                    val formattedScore = "%.4f".format(livenessScore)
-                    if(livenessResult == 0) {
-                        canvas?.drawText(
-                            "SPOOF $formattedScore",
-                            boundingBox.left + 20,
-                            boundingBox.top - 30,
-                            spoofTextPaint
-                        )
+            dimsInitialized = true
+        }
 
-                        canvas?.drawRoundRect(boundingBox, 16f, 16f, spoofBoxPaint)
-                    } else if(livenessResult == 1) {
-                        canvas?.drawText(
-                            "REAL $formattedScore",
-                            boundingBox.left + 20,
-                            boundingBox.top - 30,
-                            realTextPaint
-                        )
+        val cornerRadius = 16f
+        val textOffsetY = 30f
+        val formatted = "%.4f".format(livenessScore)
 
-                        canvas?.drawRoundRect(boundingBox, 16f, 16f, realBoxPaint)
-                    } else if(livenessResult == 2) {
-                        canvas?.drawRoundRect(boundingBox, 16f, 16f, mulitpleBoxPaint)
-                    }
+        for (face in boxes) {
+            val r = RectF(
+                face.left.toFloat(),
+                face.top.toFloat(),
+                face.right.toFloat(),
+                face.bottom.toFloat()
+            )
+            output2OverlayTransform.mapRect(r)
+
+            when (livenessResult) {
+                0 -> { // spoof
+                    canvas.drawText("SPOOF $formatted", r.left + 20f, r.top - textOffsetY, spoofTextPaint)
+                    canvas.drawRoundRect(r, cornerRadius, cornerRadius, spoofBoxPaint)
+                }
+                1 -> { // real
+                    canvas.drawText("REAL $formatted", r.left + 20f, r.top - textOffsetY, realTextPaint)
+                    canvas.drawRoundRect(r, cornerRadius, cornerRadius, realBoxPaint)
+                }
+                2 -> { // multiple
+                    canvas.drawRoundRect(r, cornerRadius, cornerRadius, multipleBoxPaint)
+                }
+                else -> {
+                    // default/fallback
+                    canvas.drawRoundRect(r, cornerRadius, cornerRadius, multipleBoxPaint)
                 }
             }
         }
