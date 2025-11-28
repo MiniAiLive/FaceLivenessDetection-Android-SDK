@@ -1,6 +1,6 @@
 <div align="center">
    <h1> Face Liveness Detection Android SDK </h1>
-   <img src=https://miniai.live/wp-content/uploads/2024/02/logo_name-1-768x426-1.png alt="MiniAiLive Logo"
+   <img src=https://miniai.live/wp-content/uploads/2025/11/logo_text.png alt="MiniAiLive Logo"
    width="300">
 </div>
 
