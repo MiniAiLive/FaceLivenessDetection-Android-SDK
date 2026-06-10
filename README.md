@@ -11,7 +11,8 @@ Upgrade your Android app with MiniAiLive's 3D Passive Face Liveness Detection!  
 > **Note**
 >
 > SDK is fully on-premise, processing all happens on hosting server and no data leaves server.
-
+> 
+## Latest Face LivenessDetection SDK Download Link [Here](https://drive.google.com/drive/folders/1eSLvRYop4GXV4iz0E6nF1LauAfgpNGYi?usp=drive_link)
 
 ## Face LivenessDetection APK
 <a href="https://play.google.com/store/apps/details?id=com.miniai.liveness&hl=en-HK" target="_blank">
