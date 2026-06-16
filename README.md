@@ -36,7 +36,7 @@ Feel free to [Contact US](https://www.miniai.live/contact/) to get a trial Licen
 
 ## SDK License
 
-This project uses `KBY-AI`'s liveness detection SDK. The SDK requires a license per `application ID`.
+This project uses `MiniAiLive`'s liveness detection SDK. The SDK requires a license per `application ID`.
 
 - The code below shows how to use the license:
 ```
